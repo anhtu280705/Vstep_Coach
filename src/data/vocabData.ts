@@ -4,6 +4,7 @@ import { VOCAB_PACK_2 } from './vocab/pack2';
 import { VOCAB_PACK_3 } from './vocab/pack3';
 import { VOCAB_PACK_4 } from './vocab/pack4';
 import { VOCAB_PACK_5 } from './vocab/pack5';
+import { VOCAB_PACK_6 } from './vocab/pack6';
 
 export const VOCAB_TOPICS: VocabTopic[] = [
   {
@@ -118,6 +119,38 @@ export const VOCAB_TOPICS: VocabTopic[] = [
     iconName: 'ShieldAlert',
     color: 'slate',
   },
+  {
+    id: 'pros-cons',
+    title: 'Pros, Cons & Evaluation',
+    titleVi: 'Lợi ích, Tác hại & Đánh giá',
+    description: '30 tính từ & danh từ xương sống để nêu mặt tốt/xấu, ưu/nhược điểm trong Writing & Speaking.',
+    iconName: 'Scale',
+    color: 'emerald',
+  },
+  {
+    id: 'cause-effect',
+    title: 'Reasons, Causes & Solutions',
+    titleVi: 'Lý do, Nguyên nhân & Giải pháp',
+    description: '30 từ & cụm từ nối dùng giải thích nguyên nhân, hệ quả và lập luận mọi bài Writing Task 2.',
+    iconName: 'GitBranch',
+    color: 'indigo',
+  },
+  {
+    id: 'states-feelings',
+    title: 'States, Feelings & Conditions',
+    titleVi: 'Trạng thái, Cảm xúc & Hoàn cảnh',
+    description: '30 tính từ miêu tả cảm xúc, mức độ hài lòng/bức xúc và trạng thái môi trường sống.',
+    iconName: 'Heart',
+    color: 'rose',
+  },
+  {
+    id: 'core-verbs',
+    title: 'Core Verbs for Writing & Speaking',
+    titleVi: 'Động từ Cốt lõi cho Viết & Nói',
+    description: '30 động từ đa năng tần suất cao (tăng/giảm, đề xuất, cân bằng, giải thích) lắp vào mọi câu.',
+    iconName: 'Zap',
+    color: 'amber',
+  },
 ];
 
 export const DEFAULT_VOCAB_WORDS: VocabWord[] = [
@@ -126,4 +159,5 @@ export const DEFAULT_VOCAB_WORDS: VocabWord[] = [
   ...VOCAB_PACK_3,
   ...VOCAB_PACK_4,
   ...VOCAB_PACK_5,
+  ...VOCAB_PACK_6,
 ];

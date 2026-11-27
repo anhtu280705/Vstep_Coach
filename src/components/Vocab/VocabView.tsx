@@ -6,7 +6,9 @@ import {
   Cpu,
   Edit3,
   Feather,
+  GitBranch,
   GraduationCap,
+  Heart,
   HeartHandshake,
   HeartPulse,
   Layers,
@@ -15,6 +17,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Scale,
   Search,
   ShieldAlert,
   Smile,
@@ -56,6 +59,10 @@ const TOPIC_ICONS: Record<string, React.ReactNode> = {
   Feather: <Feather className="w-5 h-5" />,
   Smile: <Smile className="w-5 h-5" />,
   ShieldAlert: <ShieldAlert className="w-5 h-5" />,
+  Scale: <Scale className="w-5 h-5" />,
+  GitBranch: <GitBranch className="w-5 h-5" />,
+  Heart: <Heart className="w-5 h-5" />,
+  Zap: <Zap className="w-5 h-5" />,
   Sparkles: <Sparkles className="w-5 h-5" />,
 };
 
@@ -219,7 +226,7 @@ export const VocabView: React.FC = () => {
             Kho từ vựng VSTEP B1–B2 ({allWords.length} từ)
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            14 chủ đề trọng tâm · Tự động bật bài ôn tập (chọn từ, điền từ, nghe) sau mỗi 10 từ vừa học.
+            {allTopics.filter((t) => !t.isCustom).length} chủ đề trọng tâm · Tự động bật bài ôn tập (chọn từ, điền từ, nghe) sau mỗi 10 từ vừa học.
           </p>
         </div>
 
