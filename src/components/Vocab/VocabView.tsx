@@ -271,7 +271,7 @@ export const VocabView: React.FC = () => {
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
               {dueWordsToday.length > 0
                 ? 'Hệ thống lặp lại ngắt quãng chọn ra các từ bạn sắp quên để ôn lại đúng thời điểm.'
-                : 'Hãy chọn một chủ đề bên dưới để học lượt 15 từ mới và làm Mini-Quiz.'}
+                : 'Hãy chọn một chủ đề bên dưới để học từng chặng 10 từ mới và tự động làm Mini-Quiz.'}
             </p>
           </div>
         </div>

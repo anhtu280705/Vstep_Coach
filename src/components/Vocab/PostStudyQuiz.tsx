@@ -15,157 +15,13 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { VocabWord } from '../../types';
+import {
+  buildHintMask,
+  buildQuizQuestions,
+  normalizeAnswer,
+  QuizQuestionItem,
+} from '../../utils/quizGenerator';
 import { speakText } from '../../utils/tts';
-
-type QuizKind = 'meaning' | 'word' | 'type' | 'listen';
-
-interface QuizQuestionItem {
-  wordObj: VocabWord;
-  kind: QuizKind;
-  promptTitle: string;
-  promptSub: string;
-  maskedSentence?: string;
-  options: { label: string; sub?: string; wordId: string }[];
-  correctWordId: string;
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function maskWordInSentence(sentence: string, targetWord: string): string {
-  const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`\\b${escaped}[a-z]*\\b`, 'i');
-  if (regex.test(sentence)) {
-    return sentence.replace(regex, '________');
-  }
-  return sentence;
-}
-
-function buildHintMask(word: string, revealLevel: number): string {
-  return word
-    .split(' ')
-    .map((part) => {
-      if (part.length <= 2) return part[0] + '_'.repeat(Math.max(0, part.length - 1));
-      const chars = part.split('');
-      return chars
-        .map((ch, idx) => {
-          if (ch === '-' || ch === "'") return ch;
-          if (idx === 0) return ch;
-          if (revealLevel >= 1 && idx === chars.length - 1) return ch;
-          if (revealLevel >= 2 && idx === 1) return ch;
-          return '_';
-        })
-        .join(' ');
-    })
-    .join('   ');
-}
-
-function normalizeAnswer(str: string): string {
-  return str.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function pickDistractors(target: VocabWord, words: VocabWord[], pool: VocabWord[]): VocabWord[] {
-  // Ưu tiên lấy 3 đáp án nhiễu từ chính tập từ đang ôn (vd: 10 từ vừa học)
-  const fromSession = shuffle(words.filter((w) => w.id !== target.id)).slice(0, 3);
-  if (fromSession.length === 3) {
-    return fromSession;
-  }
-
-  // Chỉ bổ sung thêm khi tập đang ôn có ít hơn 4 từ (vd: ôn lại 1-3 từ làm sai)
-  const usedIds = new Set<string>([target.id, ...fromSession.map((w) => w.id)]);
-  const sameTopic = shuffle(
-    pool.filter((w) => !usedIds.has(w.id) && w.topicId === target.topicId)
-  );
-  const picked = [...fromSession];
-
-  for (const item of sameTopic) {
-    if (picked.length >= 3) break;
-    picked.push(item);
-    usedIds.add(item.id);
-  }
-
-  if (picked.length < 3) {
-    const restPool = shuffle(pool.filter((w) => !usedIds.has(w.id)));
-    for (const item of restPool) {
-      if (picked.length >= 3) break;
-      picked.push(item);
-    }
-  }
-
-  return picked;
-}
-
-function buildQuestions(words: VocabWord[], pool: VocabWord[]): QuizQuestionItem[] {
-  // Cycle through all 4 rich modes: chọn từ đúng nghĩa, điền từ đúng nghĩa, chọn nghĩa đúng, nghe chọn từ
-  const kinds: QuizKind[] = ['word', 'type', 'meaning', 'listen'];
-
-  return shuffle(words).map((target, idx) => {
-    const kind = kinds[idx % kinds.length];
-    const distractors = pickDistractors(target, words, pool);
-    const allChoices = shuffle([target, ...distractors]);
-
-    if (kind === 'meaning') {
-      return {
-        wordObj: target,
-        kind,
-        promptTitle: target.word,
-        promptSub: `${target.ipa} · (${target.pos})`,
-        options: allChoices.map((c) => ({
-          label: c.meaning,
-          wordId: c.id,
-        })),
-        correctWordId: target.id,
-      };
-    }
-
-    if (kind === 'word') {
-      return {
-        wordObj: target,
-        kind,
-        promptTitle: target.meaning,
-        promptSub: `Chọn từ tiếng Anh đúng nghĩa (${target.pos} · ${target.level})`,
-        options: allChoices.map((c) => ({
-          label: c.word,
-          sub: c.ipa,
-          wordId: c.id,
-        })),
-        correctWordId: target.id,
-      };
-    }
-
-    if (kind === 'listen') {
-      return {
-        wordObj: target,
-        kind,
-        promptTitle: 'Nghe phát âm và chọn từ tiếng Anh đúng',
-        promptSub: `Nghĩa: ${target.meaning}`,
-        options: allChoices.map((c) => ({
-          label: c.word,
-          sub: c.ipa,
-          wordId: c.id,
-        })),
-        correctWordId: target.id,
-      };
-    }
-
-    // kind === 'type' (Điền từ đúng nghĩa)
-    return {
-      wordObj: target,
-      kind: 'type',
-      promptTitle: target.meaning,
-      promptSub: `Loại từ: (${target.pos}) · Gõ từ tiếng Anh tương ứng`,
-      maskedSentence: maskWordInSentence(target.example, target.word),
-      options: [],
-      correctWordId: target.id,
-    };
-  });
-}
 
 interface PostStudyQuizProps {
   title: string;
@@ -185,9 +41,12 @@ export const PostStudyQuiz: React.FC<PostStudyQuizProps> = ({
   onContinueNextChunk,
 }) => {
   const { state, allWords, recordQuizResults } = useApp();
+  const allWordsRef = useRef(allWords);
+  allWordsRef.current = allWords;
+
   const [activeWords, setActiveWords] = useState<VocabWord[]>(words);
   const [questions, setQuestions] = useState<QuizQuestionItem[]>(() =>
-    buildQuestions(words, allWords)
+    buildQuizQuestions(words, allWords)
   );
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -208,10 +67,10 @@ export const PostStudyQuiz: React.FC<PostStudyQuizProps> = ({
   const isAnswered =
     currentQ?.kind === 'type' ? typeSubmitted : selectedWordId !== null;
 
-  // Reset cleanly whenever incoming words chunk changes
+  // Reset cleanly whenever incoming words chunk changes (without resetting on background customWords sync)
   useEffect(() => {
     setActiveWords(words);
-    setQuestions(buildQuestions(words, allWords));
+    setQuestions(buildQuizQuestions(words, allWordsRef.current));
     setCurrentIndex(0);
     setSelectedWordId(null);
     setTypedInput('');
@@ -220,7 +79,7 @@ export const PostStudyQuiz: React.FC<PostStudyQuizProps> = ({
     setHintLevel(0);
     setAnswers([]);
     setFinished(false);
-  }, [words, allWords]);
+  }, [words]);
 
   useEffect(() => {
     if (!finished && currentQ) {
@@ -288,46 +147,48 @@ export const PostStudyQuiz: React.FC<PostStudyQuizProps> = ({
   };
 
   // Keyboard shortcuts: Enter to advance after answering, 1-4 to pick options, R to replay audio
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat) return;
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    if (e.repeat) return;
 
-      if (finished) {
-        if (e.key === 'Enter' && onContinueNextChunk) {
-          e.preventDefault();
-          onContinueNextChunk();
-        }
-        return;
-      }
-
-      if (!currentQ) return;
-
-      if (e.key === 'Enter' && isAnswered) {
+    if (finished) {
+      if (e.key === 'Enter' && onContinueNextChunk) {
         e.preventDefault();
-        handleNext();
-        return;
+        onContinueNextChunk();
       }
+      return;
+    }
 
-      if (!isAnswered && currentQ.kind !== 'type') {
-        if (['1', '2', '3', '4'].includes(e.key)) {
-          const opt = currentQ.options[Number(e.key) - 1];
-          if (opt) {
-            e.preventDefault();
-            handleSelectOption(opt.wordId);
-          }
-        } else if (e.key === 'r' || e.key === 'R') {
+    if (!currentQ) return;
+
+    if (e.key === 'Enter' && isAnswered) {
+      e.preventDefault();
+      handleNext();
+      return;
+    }
+
+    if (!isAnswered && currentQ.kind !== 'type') {
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        const opt = currentQ.options[Number(e.key) - 1];
+        if (opt) {
           e.preventDefault();
-          speakText(currentQ.wordObj.word, {
-            accent: state.settings.ttsAccent,
-            rate: state.settings.ttsRate,
-          });
+          handleSelectOption(opt.wordId);
         }
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        speakText(currentQ.wordObj.word, {
+          accent: state.settings.ttsAccent,
+          rate: state.settings.ttsRate,
+        });
       }
-    };
+    }
+  };
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  });
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => keyHandlerRef.current(e);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
 
   const wrongWords = useMemo(() => {
     const wrongIds = new Set(answers.filter((a) => !a.isCorrect).map((a) => a.wordId));
@@ -337,7 +198,7 @@ export const PostStudyQuiz: React.FC<PostStudyQuizProps> = ({
   const handleRetryWrong = () => {
     if (wrongWords.length === 0) return;
     setActiveWords(wrongWords);
-    setQuestions(buildQuestions(wrongWords, allWords));
+    setQuestions(buildQuizQuestions(wrongWords, allWordsRef.current));
     setCurrentIndex(0);
     setSelectedWordId(null);
     setTypedInput('');
@@ -349,7 +210,7 @@ export const PostStudyQuiz: React.FC<PostStudyQuizProps> = ({
   };
 
   const handleRetryAll = () => {
-    setQuestions(buildQuestions(activeWords, allWords));
+    setQuestions(buildQuizQuestions(activeWords, allWordsRef.current));
     setCurrentIndex(0);
     setSelectedWordId(null);
     setTypedInput('');

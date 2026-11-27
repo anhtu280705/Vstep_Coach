@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { WRITING_PROMPTS } from '../../data/practiceData';
+import { useApp } from '../../context/AppContext';
 
 interface WritingPracticePadProps {
   guideId: string;
@@ -19,16 +20,15 @@ export const WritingPracticePad: React.FC<WritingPracticePadProps> = ({
   guideId,
   targetWords,
 }) => {
+  const { state, saveWritingDraft } = useApp();
   const prompts = WRITING_PROMPTS[guideId] ?? [];
   const [selectedPromptIdx, setSelectedPromptIdx] = useState(0);
   const [showOutline, setShowOutline] = useState(false);
 
   const activePrompt = prompts[selectedPromptIdx];
-  const storageKey = activePrompt
-    ? `vstep_writing_draft_${guideId}_${activePrompt.id}`
-    : `vstep_writing_draft_${guideId}`;
+  const draftKey = activePrompt ? `${guideId}_${activePrompt.id}` : guideId;
+  const text = state.writingDrafts[draftKey] ?? state.writingDrafts[guideId] ?? '';
 
-  const [text, setText] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -36,25 +36,8 @@ export const WritingPracticePad: React.FC<WritingPracticePadProps> = ({
     setShowOutline(false);
   }, [guideId]);
 
-  useEffect(() => {
-    try {
-      const saved =
-        localStorage.getItem(storageKey) ??
-        localStorage.getItem(`vstep_writing_draft_${guideId}`) ??
-        '';
-      setText(saved);
-    } catch {
-      setText('');
-    }
-  }, [storageKey, guideId]);
-
   const handleChange = (val: string) => {
-    setText(val);
-    try {
-      localStorage.setItem(storageKey, val);
-    } catch {
-      // Ignore storage quota errors
-    }
+    saveWritingDraft(draftKey, val);
   };
 
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;

@@ -179,4 +179,5 @@ export interface AppState {
   skillProgress: Record<string, SkillProgress>;
   roadmapCompletedTasks: Record<string, boolean>;
   activityLog: Record<string, ActivityDayLog>;
+  writingDrafts: Record<string, string>;
 }

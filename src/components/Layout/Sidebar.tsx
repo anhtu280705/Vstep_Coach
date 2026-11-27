@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { TabId } from '../../types';
 
 const NAV_ITEMS: { id: TabId; label: string; shortLabel: string; icon: React.ReactNode }[] = [
@@ -60,10 +61,8 @@ export const Sidebar: React.FC = () => {
     currentRoadmapDay,
     daysUntilExam,
     roadmapCompletionPercent,
-    user,
-    syncStatus,
-    setAuthModalOpen,
   } = useApp();
+  const { user, syncStatus, setAuthModalOpen } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isDark = state.settings.theme === 'dark';

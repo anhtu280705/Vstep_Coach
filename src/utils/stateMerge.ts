@@ -1,19 +1,33 @@
 import { AppState, VocabWord } from '../types';
 
 export function hasMeaningfulProgress(state: AppState): boolean {
+  const hasDrafts = Object.values(state.writingDrafts ?? {}).some(
+    (v) => typeof v === 'string' && v.trim().length > 0
+  );
   return (
     Object.keys(state.vocabProgress).length > 0 ||
     state.customWords.length > 0 ||
     Object.keys(state.grammarProgress).length > 0 ||
     Object.keys(state.skillProgress).length > 0 ||
-    Object.keys(state.roadmapCompletedTasks).length > 0
+    Object.keys(state.roadmapCompletedTasks).length > 0 ||
+    hasDrafts
   );
+}
+
+function pickNewerTimestamp(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const timeA = Date.parse(a);
+  const timeB = Date.parse(b);
+  if (Number.isNaN(timeA)) return b;
+  if (Number.isNaN(timeB)) return a;
+  return timeA >= timeB ? a : b;
 }
 
 /**
  * Gộp thông minh tiến độ giữa máy cục bộ và dữ liệu đám mây
  * để khi đăng nhập trên thiết bị mới hoặc đồng bộ giữa PC ↔ Điện thoại
- * không làm mất từ đã thuộc, điểm cao nhất hay ghi chú cá nhân.
+ * không làm mất từ đã thuộc, điểm cao nhất, bài viết nháp hay lịch học.
  */
 export function mergeAppStates(local: AppState, cloud: AppState): AppState {
   const mergedVocab = { ...cloud.vocabProgress };
@@ -48,7 +62,7 @@ export function mergeAppStates(local: AppState, cloud: AppState): AppState {
         lastScore: locG.lastScore ?? clG.lastScore,
         attempts: Math.max(locG.attempts, clG.attempts),
         note: locG.note.length >= clG.note.length ? locG.note : clG.note,
-        lastStudiedAt: locG.lastStudiedAt ?? clG.lastStudiedAt,
+        lastStudiedAt: pickNewerTimestamp(locG.lastStudiedAt, clG.lastStudiedAt),
       };
     }
   }
@@ -67,7 +81,7 @@ export function mergeAppStates(local: AppState, cloud: AppState): AppState {
         mastered: locS.mastered || clS.mastered,
         checklistDone,
         note: locS.note.length >= clS.note.length ? locS.note : clS.note,
-        lastUpdatedAt: locS.lastUpdatedAt ?? clS.lastUpdatedAt,
+        lastUpdatedAt: pickNewerTimestamp(locS.lastUpdatedAt, clS.lastUpdatedAt),
       };
     }
   }
@@ -91,17 +105,31 @@ export function mergeAppStates(local: AppState, cloud: AppState): AppState {
     }
   }
 
+  const mergedWritingDrafts: Record<string, string> = { ...(cloud.writingDrafts ?? {}) };
+  for (const [k, locDraft] of Object.entries(local.writingDrafts ?? {})) {
+    const clDraft = mergedWritingDrafts[k] ?? '';
+    if (locDraft.length >= clDraft.length) {
+      mergedWritingDrafts[k] = locDraft;
+    }
+  }
+
+  const localHasData = hasMeaningfulProgress(local);
+  const cloudHasData = hasMeaningfulProgress(cloud);
+  // Fresh device with no local progress should adopt cloud schedule/settings instead of overwriting them with defaults
+  const mergedSettings =
+    !localHasData && cloudHasData
+      ? { ...local.settings, ...cloud.settings }
+      : { ...cloud.settings, ...local.settings };
+
   return {
     version: Math.max(local.version, cloud.version ?? 1),
-    settings: {
-      ...cloud.settings,
-      ...local.settings,
-    },
+    settings: mergedSettings,
     vocabProgress: mergedVocab,
     customWords: Array.from(customMap.values()),
     grammarProgress: mergedGrammar,
     skillProgress: mergedSkills,
     roadmapCompletedTasks: mergedRoadmap,
     activityLog: mergedActivity,
+    writingDrafts: mergedWritingDrafts,
   };
 }

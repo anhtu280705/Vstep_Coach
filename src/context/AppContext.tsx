@@ -1,5 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   ActivityDayLog,
   AppSettings,
@@ -10,19 +9,11 @@ import {
   VocabEase,
   VocabWord,
 } from '../types';
-import {
-  clearSupabaseConfig,
-  getSupabaseClient,
-  isSupabaseConfigured,
-  saveSupabaseConfig,
-} from '../utils/supabaseClient';
-import { hasMeaningfulProgress, mergeAppStates } from '../utils/stateMerge';
 import { DEFAULT_VOCAB_WORDS, VOCAB_TOPICS } from '../data/vocabData';
 import { GRAMMAR_TOPICS } from '../data/grammarData';
 import { SKILL_GUIDES } from '../data/skillsData';
 import { ROADMAP_DAYS } from '../data/roadmapData';
 import {
-  addDays,
   computeStreak,
   getCurrentRoadmapDay,
   getDaysRemainingToExam,
@@ -33,56 +24,12 @@ import {
   createInitialCardProgress,
   isWordDueToday,
 } from '../utils/srs';
-
-const STORAGE_KEY = 'vstep_b1b2_app_state_v1';
-
-function buildDefaultState(): AppState {
-  const today = getTodayStr();
-  return {
-    version: 1,
-    settings: {
-      theme: 'light',
-      autoSpeak: true,
-      ttsAccent: 'en-US',
-      ttsRate: 1,
-      startDate: today,
-      examDate: addDays(today, 13), // 14 ngày tính cả hôm nay (ngày 1..14)
-      dailyVocabGoal: 12,
-      showDragon: true,
-    },
-    vocabProgress: {},
-    customWords: [],
-    grammarProgress: {},
-    skillProgress: {},
-    roadmapCompletedTasks: {},
-    activityLog: {},
-  };
-}
-
-function loadInitialState(): AppState {
-  const fallback = buildDefaultState();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<AppState>;
-    return {
-      ...fallback,
-      ...parsed,
-      settings: {
-        ...fallback.settings,
-        ...(parsed.settings ?? {}),
-      },
-      vocabProgress: parsed.vocabProgress ?? {},
-      customWords: Array.isArray(parsed.customWords) ? parsed.customWords : [],
-      grammarProgress: parsed.grammarProgress ?? {},
-      skillProgress: parsed.skillProgress ?? {},
-      roadmapCompletedTasks: parsed.roadmapCompletedTasks ?? {},
-      activityLog: parsed.activityLog ?? {},
-    };
-  } catch {
-    return fallback;
-  }
-}
+import {
+  buildDefaultState,
+  loadLocalState,
+  normalizeAppState,
+  saveLocalState,
+} from '../utils/storage';
 
 interface AppContextValue {
   state: AppState;
@@ -124,6 +71,7 @@ interface AppContextValue {
   toggleSkillMastered: (guideId: string) => void;
   toggleSkillChecklist: (guideId: string, itemId: string) => void;
   saveSkillNote: (guideId: string, note: string) => void;
+  saveWritingDraft: (draftKey: string, content: string) => void;
 
   // Roadmap actions
   toggleRoadmapTask: (taskId: string) => void;
@@ -133,192 +81,49 @@ interface AppContextValue {
   exportData: () => string;
   importData: (jsonText: string) => { ok: boolean; error?: string };
   resetData: () => void;
-
-  // Auth & Cloud Sync (Supabase)
-  user: User | null;
-  authLoading: boolean;
-  supabaseConfigured: boolean;
-  syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
-  lastSyncedAt: string | null;
-  syncError: string | null;
-  authModalOpen: boolean;
-  setAuthModalOpen: (open: boolean) => void;
-  signInWithEmail: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  signUpWithEmail: (email: string, password: string) => Promise<{ ok: boolean; needsVerify?: boolean; error?: string }>;
-  signOut: () => Promise<void>;
-  syncNow: () => Promise<void>;
-  saveCloudConfig: (url: string, anonKey: string) => void;
-  clearCloudConfig: () => void;
+  replaceState: (next: AppState) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+function bumpTodayActivity(
+  prevLog: Record<string, ActivityDayLog>,
+  delta: Partial<ActivityDayLog>
+): Record<string, ActivityDayLog> {
+  const today = getTodayStr();
+  const cur = prevLog[today] ?? {
+    cardsReviewed: 0,
+    quizzesCompleted: 0,
+    tasksCompleted: 0,
+  };
+  return {
+    ...prevLog,
+    [today]: {
+      cardsReviewed: cur.cardsReviewed + (delta.cardsReviewed ?? 0),
+      quizzesCompleted: cur.quizzesCompleted + (delta.quizzesCompleted ?? 0),
+      tasksCompleted: cur.tasksCompleted + (delta.tasksCompleted ?? 0),
+    },
+  };
+}
+
+function getOrInitSkill(map: Record<string, SkillProgress>, guideId: string): SkillProgress {
+  return (
+    map[guideId] ?? {
+      mastered: false,
+      checklistDone: {},
+      note: '',
+    }
+  );
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AppState>(loadInitialState);
+  const [state, setState] = useState<AppState>(loadLocalState);
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
 
-  // Cloud Sync & Auth states
-  const [supabaseConfigured, setSupabaseConfigured] = useState<boolean>(() => isSupabaseConfigured());
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(() => isSupabaseConfigured());
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-
-  const latestStateRef = useRef<AppState>(state);
-  latestStateRef.current = state;
-  const skipNextAutoUploadRef = useRef<boolean>(false);
-
-  const normalizeLoadedState = (parsed: Partial<AppState>): AppState => {
-    const base = buildDefaultState();
-    return {
-      ...base,
-      ...parsed,
-      settings: {
-        ...base.settings,
-        ...(parsed.settings ?? {}),
-      },
-      vocabProgress: parsed.vocabProgress ?? {},
-      customWords: Array.isArray(parsed.customWords) ? parsed.customWords : [],
-      grammarProgress: parsed.grammarProgress ?? {},
-      skillProgress: parsed.skillProgress ?? {},
-      roadmapCompletedTasks: parsed.roadmapCompletedTasks ?? {},
-      activityLog: parsed.activityLog ?? {},
-    };
-  };
-
-  const pullAndMergeFromCloud = useCallback(async (targetUser: User) => {
-    const client = getSupabaseClient();
-    if (!client) return;
-    setSyncStatus('syncing');
-    setSyncError(null);
-    try {
-      const { data, error } = await client
-        .from('user_progress')
-        .select('state, updated_at')
-        .eq('user_id', targetUser.id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      const localState = latestStateRef.current;
-      if (data && data.state && typeof data.state === 'object') {
-        const cloudState = normalizeLoadedState(data.state as Partial<AppState>);
-        const merged = mergeAppStates(localState, cloudState);
-        skipNextAutoUploadRef.current = true;
-        setState(merged);
-
-        // If local had extra progress not on cloud, push merged back up
-        if (hasMeaningfulProgress(localState)) {
-          await client.from('user_progress').upsert({
-            user_id: targetUser.id,
-            state: merged,
-            updated_at: new Date().toISOString(),
-          });
-        }
-        setSyncStatus('synced');
-        setLastSyncedAt(new Date().toISOString());
-      } else {
-        // First time user on cloud -> upload current local progress automatically
-        const { error: upErr } = await client.from('user_progress').upsert({
-          user_id: targetUser.id,
-          state: localState,
-          updated_at: new Date().toISOString(),
-        });
-        if (upErr) throw upErr;
-        setSyncStatus('synced');
-        setLastSyncedAt(new Date().toISOString());
-      }
-    } catch (err) {
-      setSyncStatus('error');
-      setSyncError(
-        err instanceof Error ? err.message : 'Không thể đồng bộ dữ liệu với Supabase.'
-      );
-    }
-  }, []);
-
-  // Initialize Supabase session & auth listener
-  useEffect(() => {
-    const client = getSupabaseClient();
-    if (!client) {
-      setAuthLoading(false);
-      setUser(null);
-      return undefined;
-    }
-
-    let active = true;
-    setAuthLoading(true);
-
-    client.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      const u = data.session?.user ?? null;
-      setUser(u);
-      setAuthLoading(false);
-      if (u) {
-        void pullAndMergeFromCloud(u);
-      }
-    });
-
-    const { data: sub } = client.auth.onAuthStateChange((event, session) => {
-      if (!active) return;
-      const u = session?.user ?? null;
-      setUser(u);
-      if (event === 'SIGNED_IN' && u) {
-        void pullAndMergeFromCloud(u);
-      } else if (event === 'SIGNED_OUT') {
-        setSyncStatus('idle');
-        setLastSyncedAt(null);
-        setSyncError(null);
-      }
-    });
-
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-    };
-  }, [supabaseConfigured, pullAndMergeFromCloud]);
-
-  // Debounced auto-upload to Supabase whenever state changes while logged in
-  useEffect(() => {
-    if (!user) return undefined;
-    if (skipNextAutoUploadRef.current) {
-      skipNextAutoUploadRef.current = false;
-      return undefined;
-    }
-
-    const client = getSupabaseClient();
-    if (!client) return undefined;
-
-    const timer = window.setTimeout(async () => {
-      setSyncStatus('syncing');
-      setSyncError(null);
-      try {
-        const { error } = await client.from('user_progress').upsert({
-          user_id: user.id,
-          state: latestStateRef.current,
-          updated_at: new Date().toISOString(),
-        });
-        if (error) throw error;
-        setSyncStatus('synced');
-        setLastSyncedAt(new Date().toISOString());
-      } catch (err) {
-        setSyncStatus('error');
-        setSyncError(err instanceof Error ? err.message : 'Lỗi đồng bộ tự động.');
-      }
-    }, 1400);
-
-    return () => clearTimeout(timer);
-  }, [state, user]);
-
   // Persist state to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Ignore quota exceeded
-    }
+    saveLocalState(state);
   }, [state]);
 
   // Apply light/dark theme to <html>
@@ -331,12 +136,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [state.settings.theme]);
 
-  const navigateTo = (target: DeepLinkTarget) => {
+  const navigateTo = useCallback((target: DeepLinkTarget) => {
     setActiveTab(target.tab);
     setDeepLink(target);
-  };
+  }, []);
 
-  const clearDeepLink = () => setDeepLink(null);
+  const clearDeepLink = useCallback(() => setDeepLink(null), []);
 
   const allWords = useMemo(
     () => [...DEFAULT_VOCAB_WORDS, ...state.customWords],
@@ -416,27 +221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return Math.round((done / SKILL_GUIDES.length) * 100);
   }, [state.skillProgress]);
 
-  const bumpTodayActivity = (
-    prevLog: Record<string, ActivityDayLog>,
-    delta: Partial<ActivityDayLog>
-  ): Record<string, ActivityDayLog> => {
-    const today = getTodayStr();
-    const cur = prevLog[today] ?? {
-      cardsReviewed: 0,
-      quizzesCompleted: 0,
-      tasksCompleted: 0,
-    };
-    return {
-      ...prevLog,
-      [today]: {
-        cardsReviewed: cur.cardsReviewed + (delta.cardsReviewed ?? 0),
-        quizzesCompleted: cur.quizzesCompleted + (delta.quizzesCompleted ?? 0),
-        tasksCompleted: cur.tasksCompleted + (delta.tasksCompleted ?? 0),
-      },
-    };
-  };
-
-  const rateVocabCard = (wordId: string, ease: VocabEase) => {
+  const rateVocabCard = useCallback((wordId: string, ease: VocabEase) => {
     setState((prev) => ({
       ...prev,
       vocabProgress: {
@@ -445,9 +230,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       activityLog: bumpTodayActivity(prev.activityLog, { cardsReviewed: 1 }),
     }));
-  };
+  }, []);
 
-  const recordQuizResults = (results: { wordId: string; isCorrect: boolean }[]) => {
+  const recordQuizResults = useCallback((results: { wordId: string; isCorrect: boolean }[]) => {
     setState((prev) => {
       const nextVocab = { ...prev.vocabProgress };
       for (const item of results) {
@@ -471,9 +256,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       };
     });
-  };
+  }, []);
 
-  const toggleBookmark = (wordId: string) => {
+  const toggleBookmark = useCallback((wordId: string) => {
     setState((prev) => {
       const cur = prev.vocabProgress[wordId] ?? createInitialCardProgress();
       return {
@@ -487,9 +272,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       };
     });
-  };
+  }, []);
 
-  const addCustomWord = (wordInput: Omit<VocabWord, 'id' | 'isCustom'>) => {
+  const addCustomWord = useCallback((wordInput: Omit<VocabWord, 'id' | 'isCustom'>) => {
     const newWord: VocabWord = {
       ...wordInput,
       id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -499,9 +284,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       customWords: [newWord, ...prev.customWords],
     }));
-  };
+  }, []);
 
-  const addCustomWordsBulk = (wordsInput: Omit<VocabWord, 'id' | 'isCustom'>[]) => {
+  const addCustomWordsBulk = useCallback((wordsInput: Omit<VocabWord, 'id' | 'isCustom'>[]) => {
     const now = Date.now();
     const created: VocabWord[] = wordsInput.map((wordInput, idx) => ({
       ...wordInput,
@@ -512,16 +297,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       customWords: [...created, ...prev.customWords],
     }));
-  };
+  }, []);
 
-  const updateCustomWord = (updatedWord: VocabWord) => {
+  const updateCustomWord = useCallback((updatedWord: VocabWord) => {
     setState((prev) => ({
       ...prev,
       customWords: prev.customWords.map((w) => (w.id === updatedWord.id ? updatedWord : w)),
     }));
-  };
+  }, []);
 
-  const deleteCustomWord = (wordId: string) => {
+  const deleteCustomWord = useCallback((wordId: string) => {
     setState((prev) => {
       const nextProgress = { ...prev.vocabProgress };
       delete nextProgress[wordId];
@@ -531,9 +316,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         vocabProgress: nextProgress,
       };
     });
-  };
+  }, []);
 
-  const saveGrammarAttempt = (topicId: string, scorePercent: number) => {
+  const saveGrammarAttempt = useCallback((topicId: string, scorePercent: number) => {
     setState((prev) => {
       const cur = prev.grammarProgress[topicId] ?? {
         completed: false,
@@ -558,9 +343,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activityLog: bumpTodayActivity(prev.activityLog, { quizzesCompleted: 1 }),
       };
     });
-  };
+  }, []);
 
-  const saveGrammarNote = (topicId: string, note: string) => {
+  const saveGrammarNote = useCallback((topicId: string, note: string) => {
     setState((prev) => {
       const cur = prev.grammarProgress[topicId] ?? {
         completed: false,
@@ -576,9 +361,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       };
     });
-  };
+  }, []);
 
-  const toggleGrammarCompleted = (topicId: string) => {
+  const toggleGrammarCompleted = useCallback((topicId: string) => {
     setState((prev) => {
       const cur = prev.grammarProgress[topicId] ?? {
         completed: false,
@@ -601,22 +386,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       };
     });
-  };
+  }, []);
 
-  const getOrInitSkill = (
-    map: Record<string, SkillProgress>,
-    guideId: string
-  ): SkillProgress => {
-    return (
-      map[guideId] ?? {
-        mastered: false,
-        checklistDone: {},
-        note: '',
-      }
-    );
-  };
-
-  const toggleSkillMastered = (guideId: string) => {
+  const toggleSkillMastered = useCallback((guideId: string) => {
     setState((prev) => {
       const cur = getOrInitSkill(prev.skillProgress, guideId);
       const nextVal = !cur.mastered;
@@ -635,9 +407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       };
     });
-  };
+  }, []);
 
-  const toggleSkillChecklist = (guideId: string, itemId: string) => {
+  const toggleSkillChecklist = useCallback((guideId: string, itemId: string) => {
     setState((prev) => {
       const cur = getOrInitSkill(prev.skillProgress, guideId);
       const nextCheck = !cur.checklistDone[itemId];
@@ -656,9 +428,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       };
     });
-  };
+  }, []);
 
-  const saveSkillNote = (guideId: string, note: string) => {
+  const saveSkillNote = useCallback((guideId: string, note: string) => {
     setState((prev) => {
       const cur = getOrInitSkill(prev.skillProgress, guideId);
       return {
@@ -673,9 +445,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       };
     });
-  };
+  }, []);
 
-  const toggleRoadmapTask = (taskId: string) => {
+  const saveWritingDraft = useCallback((draftKey: string, content: string) => {
+    setState((prev) => {
+      const nextDrafts = { ...prev.writingDrafts };
+      if (content === '') {
+        delete nextDrafts[draftKey];
+      } else {
+        nextDrafts[draftKey] = content;
+      }
+      return {
+        ...prev,
+        writingDrafts: nextDrafts,
+      };
+    });
+  }, []);
+
+  const toggleRoadmapTask = useCallback((taskId: string) => {
     setState((prev) => {
       const nextDone = !prev.roadmapCompletedTasks[taskId];
       return {
@@ -689,9 +476,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       };
     });
-  };
+  }, []);
 
-  const updateSettings = (partial: Partial<AppSettings>) => {
+  const updateSettings = useCallback((partial: Partial<AppSettings>) => {
     setState((prev) => ({
       ...prev,
       settings: {
@@ -699,13 +486,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...partial,
       },
     }));
-  };
+  }, []);
 
-  const exportData = (): string => {
+  const exportData = useCallback((): string => {
     return JSON.stringify(state, null, 2);
-  };
+  }, [state]);
 
-  const importData = (jsonText: string): { ok: boolean; error?: string } => {
+  const importData = useCallback((jsonText: string): { ok: boolean; error?: string } => {
     try {
       const parsed = JSON.parse(jsonText) as Partial<AppState>;
       if (
@@ -715,147 +502,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ) {
         return { ok: false, error: 'Tệp JSON không đúng định dạng sao lưu của VSTEP App.' };
       }
-      const base = buildDefaultState();
-      setState({
-        ...base,
-        ...parsed,
-        settings: {
-          ...base.settings,
-          ...parsed.settings,
-        },
-        vocabProgress: parsed.vocabProgress ?? {},
-        customWords: Array.isArray(parsed.customWords) ? parsed.customWords : [],
-        grammarProgress: parsed.grammarProgress ?? {},
-        skillProgress: parsed.skillProgress ?? {},
-        roadmapCompletedTasks: parsed.roadmapCompletedTasks ?? {},
-        activityLog: parsed.activityLog ?? {},
-      });
+      setState(normalizeAppState(parsed));
       return { ok: true };
     } catch {
       return { ok: false, error: 'Không thể đọc tệp JSON. Vui lòng kiểm tra lại.' };
     }
-  };
+  }, []);
 
-  const resetData = () => {
-    const fresh = buildDefaultState();
-    setState(fresh);
-  };
+  const resetData = useCallback(() => {
+    setState(buildDefaultState());
+  }, []);
 
-  const signInWithEmail = async (
-    email: string,
-    password: string
-  ): Promise<{ ok: boolean; error?: string }> => {
-    const client = getSupabaseClient();
-    if (!client) {
-      return { ok: false, error: 'Chưa cấu hình kết nối Supabase.' };
-    }
-    const { error } = await client.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    return { ok: true };
-  };
+  const replaceState = useCallback((next: AppState) => {
+    setState(next);
+  }, []);
 
-  const signUpWithEmail = async (
-    email: string,
-    password: string
-  ): Promise<{ ok: boolean; needsVerify?: boolean; error?: string }> => {
-    const client = getSupabaseClient();
-    if (!client) {
-      return { ok: false, error: 'Chưa cấu hình kết nối Supabase.' };
-    }
-    const { data, error } = await client.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    const needsVerify = !data.session;
-    return { ok: true, needsVerify };
-  };
-
-  const signOut = async (): Promise<void> => {
-    const client = getSupabaseClient();
-    if (client) {
-      await client.auth.signOut();
-    }
-    setUser(null);
-    setSyncStatus('idle');
-  };
-
-  const syncNow = async (): Promise<void> => {
-    if (!user) return;
-    await pullAndMergeFromCloud(user);
-  };
-
-  const saveCloudConfig = (url: string, anonKey: string) => {
-    saveSupabaseConfig(url, anonKey);
-    setSupabaseConfigured(isSupabaseConfigured());
-  };
-
-  const clearCloudConfig = () => {
-    clearSupabaseConfig();
-    setUser(null);
-    setSupabaseConfigured(false);
-    setSyncStatus('idle');
-  };
-
-  const value: AppContextValue = {
-    state,
-    activeTab,
-    setActiveTab,
-    deepLink,
-    clearDeepLink,
-    navigateTo,
-    allWords,
-    allTopics,
-    dueWordsToday,
-    bookmarkedWords,
-    masteredWordsCount,
-    learningWordsCount,
-    streak,
-    currentRoadmapDay,
-    daysUntilExam,
-    roadmapCompletionPercent,
-    grammarCompletionPercent,
-    skillsCompletionPercent,
-    rateVocabCard,
-    recordQuizResults,
-    toggleBookmark,
-    addCustomWord,
-    addCustomWordsBulk,
-    updateCustomWord,
-    deleteCustomWord,
-    saveGrammarAttempt,
-    saveGrammarNote,
-    toggleGrammarCompleted,
-    toggleSkillMastered,
-    toggleSkillChecklist,
-    saveSkillNote,
-    toggleRoadmapTask,
-    updateSettings,
-    exportData,
-    importData,
-    resetData,
-    user,
-    authLoading,
-    supabaseConfigured,
-    syncStatus,
-    lastSyncedAt,
-    syncError,
-    authModalOpen,
-    setAuthModalOpen,
-    signInWithEmail,
-    signUpWithEmail,
-    signOut,
-    syncNow,
-    saveCloudConfig,
-    clearCloudConfig,
-  };
+  const value = useMemo<AppContextValue>(
+    () => ({
+      state,
+      activeTab,
+      setActiveTab,
+      deepLink,
+      clearDeepLink,
+      navigateTo,
+      allWords,
+      allTopics,
+      dueWordsToday,
+      bookmarkedWords,
+      masteredWordsCount,
+      learningWordsCount,
+      streak,
+      currentRoadmapDay,
+      daysUntilExam,
+      roadmapCompletionPercent,
+      grammarCompletionPercent,
+      skillsCompletionPercent,
+      rateVocabCard,
+      recordQuizResults,
+      toggleBookmark,
+      addCustomWord,
+      addCustomWordsBulk,
+      updateCustomWord,
+      deleteCustomWord,
+      saveGrammarAttempt,
+      saveGrammarNote,
+      toggleGrammarCompleted,
+      toggleSkillMastered,
+      toggleSkillChecklist,
+      saveSkillNote,
+      saveWritingDraft,
+      toggleRoadmapTask,
+      updateSettings,
+      exportData,
+      importData,
+      resetData,
+      replaceState,
+    }),
+    [
+      state,
+      activeTab,
+      deepLink,
+      clearDeepLink,
+      navigateTo,
+      allWords,
+      allTopics,
+      dueWordsToday,
+      bookmarkedWords,
+      masteredWordsCount,
+      learningWordsCount,
+      streak,
+      currentRoadmapDay,
+      daysUntilExam,
+      roadmapCompletionPercent,
+      grammarCompletionPercent,
+      skillsCompletionPercent,
+      rateVocabCard,
+      recordQuizResults,
+      toggleBookmark,
+      addCustomWord,
+      addCustomWordsBulk,
+      updateCustomWord,
+      deleteCustomWord,
+      saveGrammarAttempt,
+      saveGrammarNote,
+      toggleGrammarCompleted,
+      toggleSkillMastered,
+      toggleSkillChecklist,
+      saveSkillNote,
+      saveWritingDraft,
+      toggleRoadmapTask,
+      updateSettings,
+      exportData,
+      importData,
+      resetData,
+      replaceState,
+    ]
+  );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

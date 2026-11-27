@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -13,7 +13,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { getSupabaseConfig, SUPABASE_SETUP_SQL } from '../../utils/supabaseClient';
 
 function translateAuthError(msg: string): string {
@@ -48,7 +48,7 @@ export const AuthModal: React.FC = () => {
     syncNow,
     saveCloudConfig,
     clearCloudConfig,
-  } = useApp();
+  } = useAuth();
 
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -60,11 +60,33 @@ export const AuthModal: React.FC = () => {
   } | null>(null);
 
   // Cloud config form
-  const existingCfg = getSupabaseConfig();
   const [showConfigEditor, setShowConfigEditor] = useState(!supabaseConfigured);
-  const [cfgUrl, setCfgUrl] = useState(existingCfg.url);
-  const [cfgKey, setCfgKey] = useState(existingCfg.anonKey);
+  const [cfgUrl, setCfgUrl] = useState(() => getSupabaseConfig().url);
+  const [cfgKey, setCfgKey] = useState(() => getSupabaseConfig().anonKey);
   const [copiedSql, setCopiedSql] = useState(false);
+
+  // Sync form fields & clear stale feedback whenever modal opens or config changes
+  useEffect(() => {
+    if (!authModalOpen) return;
+    const latestCfg = getSupabaseConfig();
+    setCfgUrl(latestCfg.url);
+    setCfgKey(latestCfg.anonKey);
+    setShowConfigEditor(!supabaseConfigured);
+    setFeedback(null);
+    setPassword('');
+  }, [authModalOpen, supabaseConfigured]);
+
+  // Allow Escape key to close the modal
+  useEffect(() => {
+    if (!authModalOpen) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setAuthModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [authModalOpen, setAuthModalOpen]);
 
   if (!authModalOpen) return null;
 
@@ -144,8 +166,14 @@ export const AuthModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs">
-      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+    <div
+      onClick={() => setAuthModalOpen(false)}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2">

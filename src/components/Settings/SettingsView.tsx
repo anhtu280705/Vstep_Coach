@@ -16,6 +16,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { TtsAccent, TtsRate } from '../../types';
 import { addDays, getTodayStr } from '../../utils/date';
 import { speakText } from '../../utils/tts';
@@ -29,11 +30,8 @@ export const SettingsView: React.FC = () => {
     exportData,
     importData,
     resetData,
-    user,
-    syncStatus,
-    setAuthModalOpen,
-    syncNow,
   } = useApp();
+  const { user, syncStatus, setAuthModalOpen, syncNow } = useAuth();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusMsg, setStatusMsg] = useState<{

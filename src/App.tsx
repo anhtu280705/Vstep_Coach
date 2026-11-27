@@ -1,16 +1,35 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Layout/Sidebar';
 import { DragonBackdrop } from './components/Layout/DragonBackdrop';
-import { AuthModal } from './components/Auth/AuthModal';
 import { DashboardView } from './components/Dashboard/DashboardView';
-import { VocabView } from './components/Vocab/VocabView';
-import { GrammarView } from './components/Grammar/GrammarView';
-import { SkillsView } from './components/Skills/SkillsView';
-import { SettingsView } from './components/Settings/SettingsView';
+
+const VocabView = lazy(() =>
+  import('./components/Vocab/VocabView').then((m) => ({ default: m.VocabView }))
+);
+const GrammarView = lazy(() =>
+  import('./components/Grammar/GrammarView').then((m) => ({ default: m.GrammarView }))
+);
+const SkillsView = lazy(() =>
+  import('./components/Skills/SkillsView').then((m) => ({ default: m.SkillsView }))
+);
+const SettingsView = lazy(() =>
+  import('./components/Settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+const AuthModal = lazy(() =>
+  import('./components/Auth/AuthModal').then((m) => ({ default: m.AuthModal }))
+);
+
+const TabFallback: React.FC = () => (
+  <div className="flex items-center justify-center py-20 text-sm text-slate-400 dark:text-slate-500">
+    Đang tải...
+  </div>
+);
 
 const AppContent: React.FC = () => {
   const { activeTab, state } = useApp();
+  const { authModalOpen } = useAuth();
 
   return (
     <div
@@ -20,14 +39,22 @@ const AppContent: React.FC = () => {
     >
       <DragonBackdrop />
       <Sidebar />
-      <AuthModal />
+      {authModalOpen && (
+        <Suspense fallback={null}>
+          <AuthModal />
+        </Suspense>
+      )}
       <main className="relative z-10 flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10">
         <div className="max-w-6xl mx-auto">
           {activeTab === 'dashboard' && <DashboardView />}
-          {activeTab === 'vocab' && <VocabView />}
-          {activeTab === 'grammar' && <GrammarView />}
-          {activeTab === 'skills' && <SkillsView />}
-          {activeTab === 'settings' && <SettingsView />}
+          {activeTab !== 'dashboard' && (
+            <Suspense fallback={<TabFallback />}>
+              {activeTab === 'vocab' && <VocabView />}
+              {activeTab === 'grammar' && <GrammarView />}
+              {activeTab === 'skills' && <SkillsView />}
+              {activeTab === 'settings' && <SettingsView />}
+            </Suspense>
+          )}
         </div>
       </main>
     </div>
@@ -37,7 +64,9 @@ const AppContent: React.FC = () => {
 export function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </AppProvider>
   );
 }
