@@ -30,6 +30,9 @@ function translateAuthError(msg: string): string {
   if (lower.includes('password should be at least')) {
     return 'Mật khẩu cần tối thiểu 6 ký tự.';
   }
+  if (lower.includes('signups are disabled') || lower.includes('signup is disabled')) {
+    return 'Đăng ký bằng Email đang bị tắt trên Supabase. Hãy vào Authentication → Providers → bật Email provider và Allow new users to sign up rồi bấm Save.';
+  }
   return msg;
 }
 

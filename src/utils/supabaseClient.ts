@@ -17,17 +17,24 @@ create table if not exists public.user_progress (
 -- Bật bảo mật theo từng user (Row Level Security)
 alter table public.user_progress enable row level security;
 
+drop policy if exists "Users can read own progress" on public.user_progress;
 create policy "Users can read own progress"
   on public.user_progress for select
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can insert own progress" on public.user_progress;
 create policy "Users can insert own progress"
   on public.user_progress for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can update own progress" on public.user_progress;
 create policy "Users can update own progress"
   on public.user_progress for update
-  using (auth.uid() = user_id);`;
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Làm mới schema cache của Supabase API ngay lập tức
+notify pgrst, 'reload schema';`;
 
 let cachedClient: SupabaseClient | null = null;
 let cachedKeySignature = '';

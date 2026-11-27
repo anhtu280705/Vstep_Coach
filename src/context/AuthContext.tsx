@@ -43,6 +43,49 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function formatSyncError(err: unknown): string {
+  let message = '';
+  let code = '';
+
+  if (err instanceof Error) {
+    message = err.message;
+  } else if (typeof err === 'object' && err !== null) {
+    const obj = err as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+    message = typeof obj.message === 'string' ? obj.message : '';
+    code = typeof obj.code === 'string' ? obj.code : '';
+    if (!message && typeof obj.details === 'string') {
+      message = obj.details;
+    }
+  } else if (typeof err === 'string') {
+    message = err;
+  }
+
+  const lower = message.toLowerCase();
+  if (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    (lower.includes('user_progress') &&
+      (lower.includes('does not exist') ||
+        lower.includes('could not find the table') ||
+        lower.includes('schema cache')))
+  ) {
+    return 'Chưa tạo bảng user_progress trên Supabase. Hãy bấm "Cấu hình máy chủ Supabase" bên dưới → Copy SQL → dán vào SQL Editor trên Supabase rồi bấm Run.';
+  }
+
+  if (code === '42501' || lower.includes('row-level security')) {
+    return 'Thiếu quyền bảo mật (RLS Policy) trên bảng user_progress. Hãy bấm "Cấu hình máy chủ Supabase" → Copy SQL và chạy lại trong SQL Editor.';
+  }
+
+  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+    return 'Không kết nối được máy chủ Supabase. Hãy kiểm tra kết nối mạng hoặc Project URL.';
+  }
+
+  if (message) {
+    return code ? `${message} (mã: ${code})` : message;
+  }
+  return 'Không thể đồng bộ dữ liệu với Supabase.';
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { state, replaceState } = useApp();
 
@@ -58,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const latestStateRef = useRef<AppState>(state);
   latestStateRef.current = state;
+  const prevStateRef = useRef<AppState>(state);
   const skipNextAutoUploadRef = useRef<boolean>(false);
   const inFlightPullRef = useRef<Promise<void> | null>(null);
   const syncedUserIdRef = useRef<string | null>(null);
@@ -92,30 +136,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Push merged state back up if local device held extra unsynced progress
             if (hasMeaningfulProgress(localState)) {
-              await client.from('user_progress').upsert({
-                user_id: targetUser.id,
-                state: merged,
-                updated_at: new Date().toISOString(),
-              });
+              const { error: mergeUpErr } = await client.from('user_progress').upsert(
+                {
+                  user_id: targetUser.id,
+                  state: merged,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'user_id' }
+              );
+              if (mergeUpErr) throw mergeUpErr;
             }
             setSyncStatus('synced');
             setLastSyncedAt(new Date().toISOString());
           } else {
             // First time user on cloud -> upload current local progress automatically
-            const { error: upErr } = await client.from('user_progress').upsert({
-              user_id: targetUser.id,
-              state: localState,
-              updated_at: new Date().toISOString(),
-            });
+            const { error: upErr } = await client.from('user_progress').upsert(
+              {
+                user_id: targetUser.id,
+                state: localState,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id' }
+            );
             if (upErr) throw upErr;
             setSyncStatus('synced');
             setLastSyncedAt(new Date().toISOString());
           }
         } catch (err) {
           setSyncStatus('error');
-          setSyncError(
-            err instanceof Error ? err.message : 'Không thể đồng bộ dữ liệu với Supabase.'
-          );
+          setSyncError(formatSyncError(err));
         } finally {
           inFlightPullRef.current = null;
         }
@@ -177,9 +226,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [supabaseConfigured, pullAndMergeFromCloud]);
 
-  // Debounced auto-upload to Supabase whenever state changes while logged in
+  // Debounced auto-upload to Supabase only when study state actually changes while logged in
   useEffect(() => {
-    if (!user) return undefined;
+    if (!user) {
+      prevStateRef.current = state;
+      return undefined;
+    }
+
+    if (prevStateRef.current === state) {
+      return undefined;
+    }
+    prevStateRef.current = state;
+
     if (skipNextAutoUploadRef.current) {
       skipNextAutoUploadRef.current = false;
       return undefined;
@@ -192,17 +250,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSyncStatus('syncing');
       setSyncError(null);
       try {
-        const { error } = await client.from('user_progress').upsert({
-          user_id: user.id,
-          state: latestStateRef.current,
-          updated_at: new Date().toISOString(),
-        });
+        const { error } = await client.from('user_progress').upsert(
+          {
+            user_id: user.id,
+            state: latestStateRef.current,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
         if (error) throw error;
         setSyncStatus('synced');
         setLastSyncedAt(new Date().toISOString());
       } catch (err) {
         setSyncStatus('error');
-        setSyncError(err instanceof Error ? err.message : 'Lỗi đồng bộ tự động.');
+        setSyncError(formatSyncError(err));
       }
     }, 1400);
 
