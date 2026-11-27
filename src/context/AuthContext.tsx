@@ -72,8 +72,12 @@ function formatSyncError(err: unknown): string {
     return 'Chưa tạo bảng user_progress trên Supabase. Hãy bấm "Cấu hình máy chủ Supabase" bên dưới → Copy SQL → dán vào SQL Editor trên Supabase rồi bấm Run.';
   }
 
-  if (code === '42501' || lower.includes('row-level security')) {
-    return 'Thiếu quyền bảo mật (RLS Policy) trên bảng user_progress. Hãy bấm "Cấu hình máy chủ Supabase" → Copy SQL và chạy lại trong SQL Editor.';
+  if (code === '42501' || lower.includes('row-level security') || lower.includes('permission denied')) {
+    const rawDetail = message ? ` (${message})` : '';
+    if (lower.includes('permission denied')) {
+      return `Tài khoản chưa được cấp quyền GRANT trên bảng user_progress. Hãy bấm "Cấu hình máy chủ Supabase" → Copy SQL mới và bấm Run lại trong SQL Editor.${rawDetail}`;
+    }
+    return `Thiếu quyền bảo mật (RLS Policy) trên bảng user_progress. Hãy bấm "Cấu hình máy chủ Supabase" → Copy SQL và chạy lại trong SQL Editor.${rawDetail}`;
   }
 
   if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
