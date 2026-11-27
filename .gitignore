@@ -3,6 +3,7 @@ node_modules/
 dist/
 dist-ssr/
 *.tsbuildinfo
+VSTEP-Coach-1File.html
 
 # Local & Editor files
 *.local

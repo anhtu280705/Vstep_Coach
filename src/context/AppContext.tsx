@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import {
   ActivityDayLog,
   AppSettings,
@@ -9,6 +10,13 @@ import {
   VocabEase,
   VocabWord,
 } from '../types';
+import {
+  clearSupabaseConfig,
+  getSupabaseClient,
+  isSupabaseConfigured,
+  saveSupabaseConfig,
+} from '../utils/supabaseClient';
+import { hasMeaningfulProgress, mergeAppStates } from '../utils/stateMerge';
 import { DEFAULT_VOCAB_WORDS, VOCAB_TOPICS } from '../data/vocabData';
 import { GRAMMAR_TOPICS } from '../data/grammarData';
 import { SKILL_GUIDES } from '../data/skillsData';
@@ -125,6 +133,22 @@ interface AppContextValue {
   exportData: () => string;
   importData: (jsonText: string) => { ok: boolean; error?: string };
   resetData: () => void;
+
+  // Auth & Cloud Sync (Supabase)
+  user: User | null;
+  authLoading: boolean;
+  supabaseConfigured: boolean;
+  syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
+  lastSyncedAt: string | null;
+  syncError: string | null;
+  authModalOpen: boolean;
+  setAuthModalOpen: (open: boolean) => void;
+  signInWithEmail: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ ok: boolean; needsVerify?: boolean; error?: string }>;
+  signOut: () => Promise<void>;
+  syncNow: () => Promise<void>;
+  saveCloudConfig: (url: string, anonKey: string) => void;
+  clearCloudConfig: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -133,6 +157,160 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, setState] = useState<AppState>(loadInitialState);
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
+
+  // Cloud Sync & Auth states
+  const [supabaseConfigured, setSupabaseConfigured] = useState<boolean>(() => isSupabaseConfigured());
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(() => isSupabaseConfigured());
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  const latestStateRef = useRef<AppState>(state);
+  latestStateRef.current = state;
+  const skipNextAutoUploadRef = useRef<boolean>(false);
+
+  const normalizeLoadedState = (parsed: Partial<AppState>): AppState => {
+    const base = buildDefaultState();
+    return {
+      ...base,
+      ...parsed,
+      settings: {
+        ...base.settings,
+        ...(parsed.settings ?? {}),
+      },
+      vocabProgress: parsed.vocabProgress ?? {},
+      customWords: Array.isArray(parsed.customWords) ? parsed.customWords : [],
+      grammarProgress: parsed.grammarProgress ?? {},
+      skillProgress: parsed.skillProgress ?? {},
+      roadmapCompletedTasks: parsed.roadmapCompletedTasks ?? {},
+      activityLog: parsed.activityLog ?? {},
+    };
+  };
+
+  const pullAndMergeFromCloud = useCallback(async (targetUser: User) => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    setSyncStatus('syncing');
+    setSyncError(null);
+    try {
+      const { data, error } = await client
+        .from('user_progress')
+        .select('state, updated_at')
+        .eq('user_id', targetUser.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const localState = latestStateRef.current;
+      if (data && data.state && typeof data.state === 'object') {
+        const cloudState = normalizeLoadedState(data.state as Partial<AppState>);
+        const merged = mergeAppStates(localState, cloudState);
+        skipNextAutoUploadRef.current = true;
+        setState(merged);
+
+        // If local had extra progress not on cloud, push merged back up
+        if (hasMeaningfulProgress(localState)) {
+          await client.from('user_progress').upsert({
+            user_id: targetUser.id,
+            state: merged,
+            updated_at: new Date().toISOString(),
+          });
+        }
+        setSyncStatus('synced');
+        setLastSyncedAt(new Date().toISOString());
+      } else {
+        // First time user on cloud -> upload current local progress automatically
+        const { error: upErr } = await client.from('user_progress').upsert({
+          user_id: targetUser.id,
+          state: localState,
+          updated_at: new Date().toISOString(),
+        });
+        if (upErr) throw upErr;
+        setSyncStatus('synced');
+        setLastSyncedAt(new Date().toISOString());
+      }
+    } catch (err) {
+      setSyncStatus('error');
+      setSyncError(
+        err instanceof Error ? err.message : 'Không thể đồng bộ dữ liệu với Supabase.'
+      );
+    }
+  }, []);
+
+  // Initialize Supabase session & auth listener
+  useEffect(() => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setAuthLoading(false);
+      setUser(null);
+      return undefined;
+    }
+
+    let active = true;
+    setAuthLoading(true);
+
+    client.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      const u = data.session?.user ?? null;
+      setUser(u);
+      setAuthLoading(false);
+      if (u) {
+        void pullAndMergeFromCloud(u);
+      }
+    });
+
+    const { data: sub } = client.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      const u = session?.user ?? null;
+      setUser(u);
+      if (event === 'SIGNED_IN' && u) {
+        void pullAndMergeFromCloud(u);
+      } else if (event === 'SIGNED_OUT') {
+        setSyncStatus('idle');
+        setLastSyncedAt(null);
+        setSyncError(null);
+      }
+    });
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [supabaseConfigured, pullAndMergeFromCloud]);
+
+  // Debounced auto-upload to Supabase whenever state changes while logged in
+  useEffect(() => {
+    if (!user) return undefined;
+    if (skipNextAutoUploadRef.current) {
+      skipNextAutoUploadRef.current = false;
+      return undefined;
+    }
+
+    const client = getSupabaseClient();
+    if (!client) return undefined;
+
+    const timer = window.setTimeout(async () => {
+      setSyncStatus('syncing');
+      setSyncError(null);
+      try {
+        const { error } = await client.from('user_progress').upsert({
+          user_id: user.id,
+          state: latestStateRef.current,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+        setSyncStatus('synced');
+        setLastSyncedAt(new Date().toISOString());
+      } catch (err) {
+        setSyncStatus('error');
+        setSyncError(err instanceof Error ? err.message : 'Lỗi đồng bộ tự động.');
+      }
+    }, 1400);
+
+    return () => clearTimeout(timer);
+  }, [state, user]);
 
   // Persist state to localStorage
   useEffect(() => {
@@ -563,6 +741,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(fresh);
   };
 
+  const signInWithEmail = async (
+    email: string,
+    password: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const client = getSupabaseClient();
+    if (!client) {
+      return { ok: false, error: 'Chưa cấu hình kết nối Supabase.' };
+    }
+    const { error } = await client.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  };
+
+  const signUpWithEmail = async (
+    email: string,
+    password: string
+  ): Promise<{ ok: boolean; needsVerify?: boolean; error?: string }> => {
+    const client = getSupabaseClient();
+    if (!client) {
+      return { ok: false, error: 'Chưa cấu hình kết nối Supabase.' };
+    }
+    const { data, error } = await client.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    const needsVerify = !data.session;
+    return { ok: true, needsVerify };
+  };
+
+  const signOut = async (): Promise<void> => {
+    const client = getSupabaseClient();
+    if (client) {
+      await client.auth.signOut();
+    }
+    setUser(null);
+    setSyncStatus('idle');
+  };
+
+  const syncNow = async (): Promise<void> => {
+    if (!user) return;
+    await pullAndMergeFromCloud(user);
+  };
+
+  const saveCloudConfig = (url: string, anonKey: string) => {
+    saveSupabaseConfig(url, anonKey);
+    setSupabaseConfigured(isSupabaseConfigured());
+  };
+
+  const clearCloudConfig = () => {
+    clearSupabaseConfig();
+    setUser(null);
+    setSupabaseConfigured(false);
+    setSyncStatus('idle');
+  };
+
   const value: AppContextValue = {
     state,
     activeTab,
@@ -600,6 +841,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     exportData,
     importData,
     resetData,
+    user,
+    authLoading,
+    supabaseConfigured,
+    syncStatus,
+    lastSyncedAt,
+    syncError,
+    authModalOpen,
+    setAuthModalOpen,
+    signInWithEmail,
+    signUpWithEmail,
+    signOut,
+    syncNow,
+    saveCloudConfig,
+    clearCloudConfig,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

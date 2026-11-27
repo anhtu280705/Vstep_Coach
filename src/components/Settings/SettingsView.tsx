@@ -3,8 +3,11 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
+  Cloud,
   Download,
+  LogIn,
   Moon,
+  RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
   Sparkles,
@@ -26,6 +29,10 @@ export const SettingsView: React.FC = () => {
     exportData,
     importData,
     resetData,
+    user,
+    syncStatus,
+    setAuthModalOpen,
+    syncNow,
   } = useApp();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -105,6 +112,52 @@ export const SettingsView: React.FC = () => {
           <span>{statusMsg.text}</span>
         </div>
       )}
+
+      {/* Cloud Sync & Account */}
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <Cloud className="w-5 h-5 text-indigo-500" />
+              Tài khoản &amp; Đồng bộ đám mây (PC ↔ Điện thoại)
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {user
+                ? `Đang đăng nhập: ${user.email} · Trạng thái: ${
+                    syncStatus === 'synced'
+                      ? 'Đã đồng bộ'
+                      : syncStatus === 'syncing'
+                      ? 'Đang đồng bộ...'
+                      : syncStatus === 'error'
+                      ? 'Lỗi đồng bộ'
+                      : 'Sẵn sàng'
+                  }`
+                : 'Đăng nhập bằng email để tự động lưu và đồng bộ tiến độ giữa nhiều thiết bị.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {user && (
+              <button
+                onClick={() => void syncNow()}
+                disabled={syncStatus === 'syncing'}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`}
+                />
+                Đồng bộ ngay
+              </button>
+            )}
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              {user ? 'Quản lý tài khoản' : 'Đăng nhập / Kết nối Supabase'}
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Schedule Settings */}
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">

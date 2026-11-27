@@ -2,6 +2,7 @@ import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Layout/Sidebar';
 import { DragonBackdrop } from './components/Layout/DragonBackdrop';
+import { AuthModal } from './components/Auth/AuthModal';
 import { DashboardView } from './components/Dashboard/DashboardView';
 import { VocabView } from './components/Vocab/VocabView';
 import { GrammarView } from './components/Grammar/GrammarView';
@@ -19,6 +20,7 @@ const AppContent: React.FC = () => {
     >
       <DragonBackdrop />
       <Sidebar />
+      <AuthModal />
       <main className="relative z-10 flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10">
         <div className="max-w-6xl mx-auto">
           {activeTab === 'dashboard' && <DashboardView />}

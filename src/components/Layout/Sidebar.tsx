@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import {
   BookOpen,
   CalendarClock,
+  Cloud,
   Compass,
   GraduationCap,
   Layers,
+  LogIn,
   Menu,
   Moon,
   Settings,
@@ -58,6 +60,9 @@ export const Sidebar: React.FC = () => {
     currentRoadmapDay,
     daysUntilExam,
     roadmapCompletionPercent,
+    user,
+    syncStatus,
+    setAuthModalOpen,
   } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -153,8 +158,38 @@ export const Sidebar: React.FC = () => {
         </nav>
       </div>
 
-      {/* Bottom toggles: Dragon companion + Theme */}
+      {/* Bottom toggles: Account + Dragon companion + Theme */}
       <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-1">
+        <button
+          onClick={() => {
+            setAuthModalOpen(true);
+            setMobileOpen(false);
+          }}
+          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            {user ? (
+              <Cloud className="w-4 h-4 text-emerald-500 shrink-0" />
+            ) : (
+              <LogIn className="w-4 h-4 text-indigo-500 shrink-0" />
+            )}
+            <span className="truncate">
+              {user ? user.email?.split('@')[0] : 'Đăng nhập / Đồng bộ'}
+            </span>
+          </span>
+          <span
+            className={`text-[11px] px-2 py-0.5 rounded-md font-semibold shrink-0 ${
+              user
+                ? syncStatus === 'error'
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+            }`}
+          >
+            {user ? (syncStatus === 'syncing' ? 'Sync...' : 'Cloud') : 'Mở'}
+          </span>
+        </button>
+
         <button
           onClick={() => updateSettings({ showDragon: !state.settings.showDragon })}
           className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors cursor-pointer"
@@ -216,7 +251,18 @@ export const Sidebar: React.FC = () => {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            aria-label="Tài khoản và đồng bộ"
+            className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            {user ? (
+              <Cloud className="w-5 h-5 text-emerald-500" />
+            ) : (
+              <LogIn className="w-5 h-5 text-indigo-500" />
+            )}
+          </button>
           <button
             onClick={toggleTheme}
             aria-label="Đổi giao diện Sáng/Tối"
