@@ -567,23 +567,21 @@ export const WRITING_PROMPTS: Record<string, WritingPromptItem[]> = {
       suggestedVocab: ['career prospect', 'cost of living', 'traffic congestion', 'rural', 'pace of life', 'whereas'],
     },
     {
-      id: 'wt2o-3',
-      title: 'Đề 3 · Opinion: Trí tuệ nhân tạo (AI) trong công việc',
+      id: 'wt2c-3',
+      title: 'Đề 3 · Adv & Disadv: Làm việc từ xa (Remote Work)',
       promptText:
-        'Artificial intelligence is taking over many routine tasks in offices and factories. Some argue that AI brings more benefits than threats to human workers. Do you agree or disagree? (≥ 250 words)',
+        'Remote working has become widespread in many industries. Do the advantages of working from home outweigh the disadvantages? Write an essay of at least 250 words.',
       outlineHints: [
-        'Mở bài: Dẫn xu hướng tự động hóa + chốt quan điểm (Lợi ích lớn hơn nếu con người nâng cấp kỹ năng).',
-        'Body 1: Lợi ích (tăng năng suất, giảm việc lặp lại nhàm chán, tạo ngành nghề mới).',
-        'Body 2: Thách thức (nguy cơ mất việc phổ thông) và lý do vẫn kiểm soát được nhờ đào tạo lại (lifelong learning).',
-        'Kết bài: Chốt lại quan điểm.',
+        'Mở bài: Nêu xu hướng remote work + khẳng định ngay lợi ích có vượt trội nhược điểm hay không.',
+        'Body 1 (Ưu điểm): Tiết kiệm thời gian đi lại, cân bằng công việc – cuộc sống, giảm khí thải.',
+        'Body 2 (Nhược điểm): Cảm giác cô lập, khó tách bạch giờ nghỉ – giờ làm, xao nhãng tại nhà.',
+        'Kết bài: Khẳng định lại bên nào nặng hơn ("outweigh").',
       ],
-      suggestedVocab: ['artificial intelligence', 'automate', 'productive', 'obsolete', 'lifelong learning', 'outweigh'],
+      suggestedVocab: ['remote work', 'commute', 'work-life balance', 'isolated', 'drawback', 'outweigh'],
     },
-  ],
-  'writing-task2-cause-adv': [
     {
       id: 'wt2c-1',
-      title: 'Đề 1 · Causes & Solutions: Ô nhiễm nhựa và rác thải đô thị',
+      title: 'Đề 4 · Causes & Solutions: Ô nhiễm nhựa và rác thải đô thị',
       promptText:
         'Plastic waste is becoming a serious environmental threat in many large cities. What are the main causes of this problem, and what effective measures should be taken by governments and individuals? (≥ 250 words)',
       outlineHints: [
@@ -595,8 +593,21 @@ export const WRITING_PROMPTS: Record<string, WritingPromptItem[]> = {
       suggestedVocab: ['disposable', 'recycle', 'contaminate', 'measure', 'awareness', 'sustainable'],
     },
     {
+      id: 'wt2o-3',
+      title: 'Đề 5 · Opinion: Trí tuệ nhân tạo (AI) trong công việc',
+      promptText:
+        'Artificial intelligence is taking over many routine tasks in offices and factories. Some argue that AI brings more benefits than threats to human workers. Do you agree or disagree? (≥ 250 words)',
+      outlineHints: [
+        'Mở bài: Dẫn xu hướng tự động hóa + chốt quan điểm (Lợi ích lớn hơn nếu con người nâng cấp kỹ năng).',
+        'Body 1: Lợi ích (tăng năng suất, giảm việc lặp lại nhàm chán, tạo ngành nghề mới).',
+        'Body 2: Thách thức (nguy cơ mất việc phổ thông) và lý do vẫn kiểm soát được nhờ đào tạo lại (lifelong learning).',
+        'Kết bài: Chốt lại quan điểm.',
+      ],
+      suggestedVocab: ['artificial intelligence', 'automate', 'productive', 'obsolete', 'lifelong learning', 'outweigh'],
+    },
+    {
       id: 'wt2c-2',
-      title: 'Đề 2 · Causes & Solutions: Lối sống ít vận động ở giới trẻ',
+      title: 'Đề 6 · Causes & Solutions: Lối sống ít vận động ở giới trẻ',
       promptText:
         'Nowadays, an increasing number of young people suffer from health problems due to a sedentary lifestyle and poor diet. What are the reasons for this trend, and how can it be addressed? (≥ 250 words)',
       outlineHints: [
@@ -605,19 +616,6 @@ export const WRITING_PROMPTS: Record<string, WritingPromptItem[]> = {
         'Body 2 (Giải pháp): Nhà trường/công ty tạo không gian thể thao + cha mẹ/cá nhân giới hạn screen time.',
       ],
       suggestedVocab: ['sedentary', 'obesity', 'balanced diet', 'screen time', 'relieve', 'tackle'],
-    },
-    {
-      id: 'wt2c-3',
-      title: 'Đề 3 · Advantages vs Disadvantages: Làm việc từ xa (Remote Work)',
-      promptText:
-        'Remote working has become widespread in many industries. Do the advantages of working from home outweigh the disadvantages? Write an essay of at least 250 words.',
-      outlineHints: [
-        'Mở bài: Nêu xu hướng remote work + khẳng định ngay lợi ích có vượt trội nhược điểm hay không.',
-        'Body 1 (Ưu điểm): Tiết kiệm thời gian đi lại, cân bằng công việc – cuộc sống, giảm khí thải.',
-        'Body 2 (Nhược điểm): Cảm giác cô lập, khó tách bạch giờ nghỉ – giờ làm, xao nhãng tại nhà.',
-        'Kết bài: Khẳng định lại bên nào nặng hơn ("outweigh").',
-      ],
-      suggestedVocab: ['remote work', 'commute', 'work-life balance', 'isolated', 'drawback', 'outweigh'],
     },
   ],
 };

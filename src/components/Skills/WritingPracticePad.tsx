@@ -27,7 +27,15 @@ export const WritingPracticePad: React.FC<WritingPracticePadProps> = ({
 
   const activePrompt = prompts[selectedPromptIdx];
   const draftKey = activePrompt ? `${guideId}_${activePrompt.id}` : guideId;
-  const text = state.writingDrafts[draftKey] ?? state.writingDrafts[guideId] ?? '';
+  const legacyDraftKey =
+    guideId === 'writing-task2-opinion' && activePrompt
+      ? `writing-task2-cause-adv_${activePrompt.id}`
+      : null;
+  const text =
+    state.writingDrafts[draftKey] ??
+    (legacyDraftKey ? state.writingDrafts[legacyDraftKey] : undefined) ??
+    state.writingDrafts[guideId] ??
+    '';
 
   const [copied, setCopied] = useState(false);
 
@@ -62,23 +70,29 @@ export const WritingPracticePad: React.FC<WritingPracticePadProps> = ({
         <div className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap gap-1.5">
-              {prompts.map((p, idx) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedPromptIdx(idx);
-                    setShowOutline(false);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
-                    selectedPromptIdx === idx
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  Đề {idx + 1}
-                </button>
-              ))}
+              {prompts.map((p, idx) => {
+                const shortLabel =
+                  guideId === 'writing-task2-opinion' && p.title.includes(':')
+                    ? p.title.split(':')[0].trim()
+                    : `Đề ${idx + 1}`;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPromptIdx(idx);
+                      setShowOutline(false);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                      selectedPromptIdx === idx
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {shortLabel}
+                  </button>
+                );
+              })}
             </div>
 
             <button

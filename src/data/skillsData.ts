@@ -366,103 +366,22 @@ export const SKILL_GUIDES: SkillGuide[] = [
   {
     id: 'writing-task2-opinion',
     skill: 'writing',
-    partLabel: 'Task 2 · Opinion & Discussion',
-    title: 'Bài luận Quan điểm & Thảo luận 2 chiều',
+    partLabel: 'Task 2 · 4 Dạng Essay & Bài Mẫu',
+    title: 'Bài luận Task 2 (4 dạng đề & Khung mẫu chung)',
     duration: '40 phút · Tối thiểu 250 từ (chiếm 2/3 điểm Writing)',
     taskInfo:
-      'Gồm 2 dạng phổ biến nhất: (1) Opinion (Do you agree or disagree? / To what extent...) và (2) Discussion (Discuss both views and give your own opinion). Nên viết 260–310 từ trong 4 đoạn rõ ràng.',
-    steps: [
-      'Phút 1–5 (Lập dàn ý): Paraphrase đề bài cho câu mở đầu. Chọn lập trường rõ ràng (Đồng ý hoàn toàn / Đồng ý một phần / Ủng hộ vế nào). Ghi nhanh 2 luận điểm lớn + 2 ví dụ.',
-      'Phút 6–10 (Introduction - 2 câu): Câu 1 dẫn bối cảnh (Paraphrase đề); Câu 2 (Thesis statement) nêu rõ quan điểm của bạn.',
-      'Phút 11–30 (2 đoạn Body - mỗi đoạn 90–110 từ): Mở đoạn bằng Topic Sentence → Giải thích lý do (This is because...) → Đưa ví dụ thực tế (For instance...) → Chốt kết quả (As a result...).',
-      'Phút 31–35 (Conclusion - 2 câu): Tóm lại 2 ý chính bằng từ ngữ khác và khẳng định lại quan điểm (tuyệt đối KHÔNG thêm ý mới ở kết bài).',
-      'Phút 36–40: Rà soát lỗi S–V agreement, từ nối và số từ (≥ 250 từ).',
-    ],
-    traps: [
-      'Không trả lời thẳng câu hỏi của đề (đề hỏi "Discuss both views AND give your opinion" nhưng chỉ thảo luận 2 bên mà quên nêu quan điểm bản thân).',
-      'Chép nguyên văn câu đề bài vào phần mở bài (phải paraphrase bằng từ đồng nghĩa hoặc đổi cấu trúc câu).',
-      'Viết quá dài (>350 từ) dẫn tới không kịp kiểm tra lỗi ngữ pháp cơ bản.',
-    ],
-    templates: [
-      {
-        label: 'Khung câu chuẩn B2 cho Opinion & Discussion Essay',
-        phrases: [
-          'Mở bài (Bối cảnh): In recent years, the question of whether [chủ đề] has sparked considerable debate.',
-          'Thesis (Opinion): While I acknowledge certain drawbacks, I firmly believe that [quan điểm] brings far greater benefits.',
-          'Thesis (Discussion): This essay will examine both perspectives before explaining why I lean toward the latter view.',
-          'Body 1: On the one hand, there are compelling reasons why some people support... First and foremost,...',
-          'Body 2: On the other hand, I would argue that... Another significant point to consider is that...',
-          'Kết bài: In conclusion, although [ý đối lập], I remain convinced that [quan điểm chính].',
-        ],
-      },
-      {
-        label: '5 cách mở đầu câu học thuật nâng band B2 (tham khảo Bảo - Brian)',
-        phrases: [
-          '1. Bị động khách quan: It is widely believed / acknowledged that + [S + V]...',
-          '2. Nhìn từ góc độ cụ thể: From an economic / environmental perspective, + [S + V]...',
-          '3. Nêu bối cảnh thực tế: Given the rapid rise of + [N/V-ing], + [S + V]...',
-          '4. Đặt vấn đề cân bằng: While it is true that [ý A], + [ý B]...',
-          '5. Dùng V-ing làm chủ ngữ: Investing in / Adopting + [N] + brings long-term benefits to...',
-        ],
-      },
-    ],
+      'Gồm đủ 4 dạng essay VSTEP (Opinion, Discussion, Advantages & Disadvantages, Causes & Solutions) dùng chung 1 khung bài mẫu đơn giản ~150 từ — chỉ cần thay đúng 3 khớp nối và điền ý ngắn là đạt 260–280+ từ.',
+    steps: [],
+    traps: [],
+    templates: [],
     sample: {
-      title: 'Ví dụ cấu trúc 1 đoạn Body đạt chuẩn B2 (PEEL)',
-      content:
-        '[Point] First and foremost, remote work significantly boosts employee productivity by eliminating daily commutes. [Explain] Without spending hours stuck in traffic congestion, workers feel less exhausted and can allocate more time and energy to core tasks. [Example] For instance, a survey conducted in major tech firms revealed that staff working from home completed projects 15% faster than office-based peers. [Link] Consequently, flexible working arrangements benefit both individual well-being and company output.',
+      title: '',
+      content: '',
     },
-    checklist: [
-      { id: 'w3-c1', text: 'Đạt tối thiểu 250 từ (mục tiêu an toàn 270–300 từ)' },
-      { id: 'w3-c2', text: 'Có Thesis Statement trả lời trực tiếp câu hỏi đề' },
-      { id: 'w3-c3', text: 'Mỗi đoạn Body phát triển đủ Point → Explain → Example' },
-      { id: 'w3-c4', text: 'Sử dụng đa dạng câu phức (Although, Which, If, Not only...)' },
-    ],
+    checklist: [],
     timerPresets: [
       { label: 'Bấm giờ Task 2 (40 phút)', seconds: 40 * 60 },
       { label: 'Luyện lập dàn ý (5 phút)', seconds: 5 * 60 },
-    ],
-  },
-  {
-    id: 'writing-task2-cause-adv',
-    skill: 'writing',
-    partLabel: 'Task 2 · Causes–Solutions & Adv–Disadv',
-    title: 'Bài luận Nguyên nhân – Giải pháp & Lợi ích – Hạn chế',
-    duration: '40 phút · Tối thiểu 250 từ',
-    taskInfo:
-      'Gồm 2 dạng phổ biến khác: (1) Causes–Effects/Solutions (What are the reasons/effects and what solutions can be taken?) và (2) Advantages–Disadvantages (Do the advantages outweigh the disadvantages?).',
-    steps: [
-      'Với **Causes & Solutions**: Body 1 trình bày 2 nguyên nhân (hoặc tác hại), Body 2 trình bày 2 giải pháp tương ứng với từng nguyên nhân đó (giải pháp ở cấp Chính phủ/Trường học & cấp Cá nhân).',
-      'Với **Advantages & Disadvantages**: Nếu đề hỏi "Do advantages outweigh disadvantages?", bắt buộc phải nêu rõ bên nào nặng hơn ngay ở Mở bài và Kết bài.',
-      'Giữ cân bằng độ dài giữa Body 1 và Body 2 (mỗi đoạn khoảng 90–110 từ).',
-    ],
-    traps: [
-      'Viết giải pháp quá chung chung ("Everyone should raise awareness") mà không nói rõ bằng cách nào (qua chiến dịch truyền thông, đưa vào chương trình học, hay phạt tiền).',
-      'Liệt kê 4–5 ý trong một đoạn mà không giải thích ý nào tới nơi tới chốn → hãy chọn 2 ý tốt nhất và phân tích sâu.',
-    ],
-    templates: [
-      {
-        label: 'Từ nối & Cụm học thuật cho Causes/Solutions & Adv/Disadv',
-        phrases: [
-          'Nêu nguyên nhân: One primary driver of this issue is... / This trend can be attributed to...',
-          'Nêu giải pháp: To tackle this problem effectively, governments should... / Another viable measure would be to...',
-          'Nêu lợi ích: One undeniable advantage of... is that... / Furthermore, it offers the benefit of...',
-          'Nêu nhược điểm: Despite these merits, a major drawback is that... / Equally concerning is the fact that...',
-          'Chốt Outweigh: Overall, I firmly believe that the benefits far outweigh the potential drawbacks.',
-        ],
-      },
-    ],
-    sample: {
-      title: 'Ví dụ cặp Nguyên nhân – Giải pháp ăn điểm',
-      content:
-        'Nguyên nhân: Urban air pollution stems primarily from heavy reliance on private fossil-fuel vehicles.\nGiải pháp tương ứng: To address this, local authorities should invest heavily in reliable public transport networks, such as metro lines and electric buses, while imposing higher congestion charges on private cars in city centers.',
-    },
-    checklist: [
-      { id: 'w4-c1', text: 'Mỗi đoạn thân bài chọn đúng 2 ý và giải thích sâu (không liệt kê)' },
-      { id: 'w4-c2', text: 'Giải pháp cụ thể (ai làm + làm gì + kết quả ra sao)' },
-      { id: 'w4-c3', text: 'Nếu có từ "outweigh", nêu rõ bên nào hơn ở Mở bài & Kết bài' },
-    ],
-    timerPresets: [
-      { label: 'Bấm giờ Task 2 (40 phút)', seconds: 40 * 60 },
     ],
   },
 

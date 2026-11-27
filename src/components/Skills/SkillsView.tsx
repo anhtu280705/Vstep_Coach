@@ -23,6 +23,7 @@ import { WritingPracticePad } from './WritingPracticePad';
 import { ListeningPractice } from './ListeningPractice';
 import { ReadingPractice } from './ReadingPractice';
 import { SpeakingPractice } from './SpeakingPractice';
+import { Task2TemplateGuide } from './Task2TemplateGuide';
 
 const SKILL_ORDER: { id: SkillType; icon: React.ReactNode }[] = [
   { id: 'listening', icon: <Headphones className="w-4 h-4" /> },
@@ -49,7 +50,11 @@ export const SkillsView: React.FC = () => {
   useEffect(() => {
     if (deepLink && deepLink.tab === 'skills') {
       if (deepLink.itemId) {
-        const found = SKILL_GUIDES.find((g) => g.id === deepLink.itemId);
+        const normalizedItemId =
+          deepLink.itemId === 'writing-task2-cause-adv'
+            ? 'writing-task2-opinion'
+            : deepLink.itemId;
+        const found = SKILL_GUIDES.find((g) => g.id === normalizedItemId);
         if (found) {
           setActiveSkill(found.skill);
           setSelectedGuideId(found.id);
@@ -76,6 +81,7 @@ export const SkillsView: React.FC = () => {
   const guidesForSkill = SKILL_GUIDES.filter((g) => g.skill === activeSkill);
   const activeGuide =
     guidesForSkill.find((g) => g.id === selectedGuideId) ?? guidesForSkill[0];
+  const isTask2Guide = activeGuide.id === 'writing-task2-opinion';
   const meta = SKILL_META[activeSkill];
   const progress = state.skillProgress[activeGuide.id];
 
@@ -240,7 +246,7 @@ export const SkillsView: React.FC = () => {
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                Chiến thuật &amp; Mẫu câu
+                {isTask2Guide ? 'Bài mẫu & 4 dạng đề' : 'Chiến thuật & Mẫu câu'}
               </button>
               <button
                 type="button"
@@ -286,6 +292,8 @@ export const SkillsView: React.FC = () => {
                   </>
                 )}
               </div>
+            ) : isTask2Guide ? (
+              <Task2TemplateGuide />
             ) : (
               <>
                 {/* Step-by-step Strategy */}

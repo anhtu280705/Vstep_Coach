@@ -431,11 +431,11 @@ export const ROADMAP_DAYS: RoadmapDay[] = [
       },
       {
         id: 'd11-t2',
-        title: 'Thực chiến Writing Task 2: Causes–Solutions / Adv–Disadv (Đề 1–3, 40p)',
+        title: 'Thực chiến Writing Task 2: Causes–Solutions / Adv–Disadv (Đề 3–4, 40p)',
         description: 'Bấm giờ viết đủ ≥260 từ trên khung soạn thảo, giải pháp cụ thể theo từng tác nhân.',
         category: 'skills',
         minutes: 50,
-        targetNav: { tab: 'skills', itemId: 'writing-task2-cause-adv', mode: 'practice' },
+        targetNav: { tab: 'skills', itemId: 'writing-task2-opinion', mode: 'practice' },
       },
       {
         id: 'd11-t3',
